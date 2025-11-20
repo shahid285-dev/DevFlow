@@ -1,0 +1,21 @@
+cdn_resolver.plugin/
+├── manifest.json
+├── native/
+│ ├── cdn_resolver.so
+│ └── fs_bridge.so
+├── js/
+│ └── resolver.js
+├── config/
+│ └── cdn_providers.json
+└── assets/
+├── icons/
+│ ├── cdn_icon.png
+│ └── library_file.png
+├── templates/
+│ ├── include_script.html
+│ └── project_libs/
+│ └── readme.txt
+└── docs/
+├── quick_start.md
+├── provider_guide.md
+└── integration_examples.md

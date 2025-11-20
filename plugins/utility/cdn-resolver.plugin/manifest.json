@@ -1,0 +1,102 @@
+{
+  "id": "cdn-resolver",
+  "name": "CDN Resolver & Library Fetcher",
+  "version": "1.0.0",
+  "type": "system",
+  "category": "network/tools",
+  "description": "Resolve, search and fetch NPM/CDN libraries directly into projects with automatic injection into editor files.",
+  "author": "DevFlow Team",
+  "license": "MIT",
+  "size": "2.45 MB",
+  "permissions": [
+    "network",
+    "file_system",
+    "native_bridge"
+  ],
+  "components": {
+    "native": [
+      {
+        "file": "native/cdn_resolver.so",
+        "arch": ["arm64-v8a", "x86_64"],
+        "entry_point": "init_cdn_resolver",
+        "description": "Handles CDN URL resolution, package metadata parsing and performance-critical JSON operations."
+      },
+      {
+        "file": "native/fs_bridge.so",
+        "arch": ["arm64-v8a", "x86_64"],
+        "entry_point": "init_fs_bridge",
+        "description": "High-speed filesystem bridge for writing fetched libraries to internal storage."
+      }
+    ],
+    "js": [
+      {
+        "file": "js/resolver.js",
+        "entry_point": "CDNResolver.setup",
+        "description": "Main logic for searching and processing libraries from configured CDN providers."
+      }
+    ]
+  },
+  "config": {
+    "providers": "config/cdn_providers.json",
+    "description": "List of CDN providers, endpoints and preference mapping."
+  },
+  "assets": {
+    "icons": [
+      {
+        "file": "assets/icons/cdn_icon.png",
+        "type": "plugin_icon",
+        "purpose": "Visual icon for CDN Resolver plugin"
+      },
+      {
+        "file": "assets/icons/library_file.png",
+        "type": "file_icon",
+        "purpose": "Used for CDN library files in project explorer"
+      }
+    ],
+    "templates": [
+      {
+        "path": "assets/templates/include_script.html",
+        "name": "Script Injection Snippet",
+        "description": "Basic template for injected <script> or <link> tags"
+      },
+      {
+        "path": "assets/templates/project_libs/",
+        "name": "Project Library Folder",
+        "description": "Template folder for newly added libraries"
+      }
+    ],
+    "documentation": [
+      {
+        "file": "assets/docs/quick_start.md",
+        "title": "CDN Resolver Quick Start",
+        "description": "Learn how to search and import libraries using CDN Resolver."
+      },
+      {
+        "file": "assets/docs/provider_guide.md",
+        "title": "Provider Guide",
+        "description": "Detailed documentation for jsDelivr, CDNJS, and unpkg integrations."
+      },
+      {
+        "file": "assets/docs/integration_examples.md",
+        "title": "Integration Examples",
+        "description": "Examples showing how libraries are automatically injected into active files."
+      }
+    ]
+  },
+  "capabilities": {
+    "library_search": true,
+    "auto_injection": true,
+    "file_download": true,
+    "storage_write": true
+  },
+  "requirements": {
+    "min_core_version": "1.0.0",
+    "android_api": 21,
+    "storage": "5 MB temporary download buffer"
+  },
+  "dependencies": [],
+  "compatibility": {
+    "file_extensions": [".js", ".css", ".html", ".json"],
+    "cdns": ["jsdelivr", "cdnjs", "unpkg"]
+  }
+}

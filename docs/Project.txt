@@ -1,0 +1,88 @@
+MobileCodeEditor/
+├── app/
+│ ├── src/
+│ │ └── main/
+│ │ ├── java/com/mobileeditor/
+│ │ │ ├── MainActivity.java
+│ │ │ ├── WebViewBridge.java
+│ │ │ └── PermissionManager.java
+│ │ ├── cpp/
+│ │ │ ├── CMakeLists.txt
+│ │ │ ├── native_bridge.cpp
+│ │ │ ├── core/
+│ │ │ │ ├── text_engine/
+│ │ │ │ │ ├── text_engine.cpp
+│ │ │ │ │ └── syntax_highlighter.cpp
+│ │ │ │ ├── file_system/
+│ │ │ │ │ └── file_ops.cpp
+│ │ │ │ ├── git_engine/
+│ │ │ │ │ └── git_core.cpp
+│ │ │ │ ├── plugin_system/ # CORE PLUGIN ENGINE
+│ │ │ │ │ ├── plugin_manager.cpp
+│ │ │ │ │ ├── plugin_loader.cpp
+│ │ │ │ │ └── sandbox_engine.cpp
+│ │ │ │ └── utils/
+│ │ │ │ ├── json_utils.cpp
+│ │ │ │ └── http_client.cpp
+│ │ │ └── jni_bridge/
+│ │ │ ├── file_bridge.cpp
+│ │ │ ├── git_bridge.cpp
+│ │ │ └── plugin_bridge.cpp
+
+
+
+
+
+│ │ └── assets/
+│ │ ├── web-frontend/
+│ │ │ ├── index.html
+│ │ │ ├── css/
+│ │ │ │ └── tailwind.css
+│ │ │ ├── js/
+│ │ │ │ ├── core/
+│ │ │ │ │ ├── app.js
+│ │ │ │ │ └── plugin-manager.js
+│ │ │ │ ├── services/
+│ │ │ │ │ ├── native-bridge.js
+│ │ │ │ │ └── file-explorer.js
+│ │ │ │ └── ui/
+│ │ │ │ ├── components/
+│ │ │ │ │ ├── sidebar.js
+│ │ │ │ │ └── editor.js
+│ │ │ │ └── plugin-store.js
+│ │ │ └── lib/
+│ │ │ └── codemirror/ # LIGHTWEIGHT EDITOR
+│ │ └── config/
+│ │ ├── editor_config.json
+│ │ └── plugin_registry.json
+├── libs/
+│ └── prebuilt/
+│ ├── libgit2.a # Only essential libs
+│ └── libsqlite3.a
+└── build.gradle
+
+
+plugins/
+├── languages/ # Language Support
+│ ├── javascript.plugin
+│ ├── python.plugin
+│ ├── java.plugin
+│ ├── cpp.plugin
+│ ├── c.plugin
+│ ├── python-micropython.plugin
+│ ├── python-full.plugin
+│ └── ...
+├── features/ # Feature Plugins
+│ ├── cloud-github.plugin
+│ ├── cloud-gitlab.plugin
+│ ├── deploy-netlify.plugin
+│ ├── ai-online.plugin
+│ ├── ai-offline.plugin
+│ ├── collaboration.plugin
+│ └── ...
+└── themes/ # UI Themes
+├── dark-theme.plugin
+├── light-theme.plugin
+└── ...
+
+getting function,method ,class usages 

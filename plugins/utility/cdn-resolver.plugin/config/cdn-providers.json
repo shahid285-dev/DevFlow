@@ -1,0 +1,62 @@
+{
+    "preferred": "jsdelivr",
+    "providers": {
+        "jsdelivr": {
+            "name": "jsDelivr",
+            "description": "CDN for NPM packages with versioned URLs and metadata API.",
+            "search": "https://registry.npmjs.org/-/v1/search?text={query}",
+            "metadata": "https://data.jsdelivr.com/v1/package/npm/{package}@{version}",
+            "url_pattern": "https://cdn.jsdelivr.net/npm/{package}@{version}/{file}",
+            "default_version": "latest",
+            "default_file_rules": [
+            {
+                "type": "js",
+                "pattern": "umd/*.min.js",
+                "fallback": "index.js"
+            },
+            {
+                "type": "css",
+                "pattern": "*.min.css",
+                "fallback": "*.css"
+            }]
+        },
+        "cdnjs": {
+            "name": "CDNJS",
+            "description": "Fast, open-source CDN hosting common JS/CSS libraries.",
+            "search": "https://api.cdnjs.com/libraries?search={query}",
+            "metadata": "https://api.cdnjs.com/libraries/{package}",
+            "url_pattern": "https://cdnjs.cloudflare.com/ajax/libs/{package}/{version}/{file}",
+            "default_version": "latest",
+            "default_file_rules": [
+            {
+                "type": "js",
+                "pattern": "*.min.js",
+                "fallback": "*.js"
+            },
+            {
+                "type": "css",
+                "pattern": "*.min.css",
+                "fallback": "*.css"
+            }]
+        },
+        "unpkg": {
+            "name": "unpkg",
+            "description": "CDN for NPM packages, supports auto-resolving latest versions.",
+            "search": "https://registry.npmjs.org/-/v1/search?text={query}",
+            "metadata": "https://unpkg.com/{package}@{version}?meta",
+            "url_pattern": "https://unpkg.com/{package}@{version}/{file}",
+            "default_version": "latest",
+            "default_file_rules": [
+            {
+                "type": "js",
+                "pattern": "*.js",
+                "fallback": "index.js"
+            },
+            {
+                "type": "css",
+                "pattern": "*.css",
+                "fallback": null
+            }]
+        }
+    }
+}

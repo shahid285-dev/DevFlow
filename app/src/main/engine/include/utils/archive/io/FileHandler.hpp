@@ -1,4 +1,3 @@
-// include/io/FileHandler.hpp
 #ifndef FILEHANDLER_HPP
 #define FILEHANDLER_HPP
 
@@ -49,7 +48,7 @@ private:
     std::error_code updateFileSize();
 };
 
-} // namespace io
-} // namespace compression
+} 
+}
 
 #endif

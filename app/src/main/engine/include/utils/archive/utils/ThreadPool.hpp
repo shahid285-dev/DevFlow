@@ -1,4 +1,3 @@
-// include/utils/ThreadPool.hpp
 #ifndef THREADPOOL_HPP
 #define THREADPOOL_HPP
 
@@ -70,7 +69,7 @@ auto ThreadPool::enqueue(F&& f, Args&&... args)
     return result;
 }
 
-} // namespace utils
-} // namespace compression
+} 
+} 
 
 #endif

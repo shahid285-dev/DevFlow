@@ -1,4 +1,3 @@
-// include/io/MemoryBuffer.hpp
 #ifndef MEMORYBUFFER_HPP
 #define MEMORYBUFFER_HPP
 
@@ -52,7 +51,7 @@ private:
     std::error_code ensureCapacity(size_t requiredCapacity);
 };
 
-} // namespace io
-} // namespace compression
+} 
+} 
 
 #endif

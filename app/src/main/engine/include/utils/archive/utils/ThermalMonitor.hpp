@@ -1,4 +1,3 @@
-// include/utils/ThermalMonitor.hpp
 #ifndef THERMALMONITOR_HPP
 #define THERMALMONITOR_HPP
 
@@ -19,6 +18,7 @@ private:
     std::atomic<bool> isThrottling_;
     std::vector<std::function<void(bool)>> throttleCallbacks_;
     std::mutex callbacksMutex_;
+    
     
 public:
     ThermalMonitor();
@@ -46,7 +46,7 @@ private:
     void notifyThrottleCallbacks(bool throttling);
 };
 
-} // namespace utils
-} // namespace compression
+}
+}
 
 #endif

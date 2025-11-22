@@ -1,4 +1,3 @@
-// include/io/MemoryMappedFile.hpp
 #ifndef MEMORYMAPPEDFILE_HPP
 #define MEMORYMAPPEDFILE_HPP
 
@@ -46,7 +45,7 @@ private:
     void closeFile();
 };
 
-} // namespace io
-} // namespace compression
+} 
+} 
 
 #endif

@@ -1,4 +1,3 @@
-// include/utils/BatteryAware.hpp
 #ifndef BATTERYAWARE_HPP
 #define BATTERYAWARE_HPP
 
@@ -35,7 +34,7 @@ public:
     static BatteryAware& getInstance();
 };
 
-} // namespace utils
-} // namespace compression
+} 
+}
 
 #endif

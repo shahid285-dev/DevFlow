@@ -1,4 +1,3 @@
-// include/utils/ProgressTracker.hpp
 #ifndef PROGRESSTRACKER_HPP
 #define PROGRESSTRACKER_HPP
 
@@ -46,7 +45,7 @@ public:
     void reset();
 };
 
-} // namespace utils
-} // namespace compression
+} 
+} 
 
 #endif

@@ -1,4 +1,3 @@
-// include/utils/PerformanceMonitor.hpp
 #ifndef PERFORMANCEMONITOR_HPP
 #define PERFORMANCEMONITOR_HPP
 
@@ -47,7 +46,7 @@ private:
     size_t getSystemMemoryUsage() const;
 };
 
-} // namespace utils
-} // namespace compression
+} 
+} 
 
 #endif

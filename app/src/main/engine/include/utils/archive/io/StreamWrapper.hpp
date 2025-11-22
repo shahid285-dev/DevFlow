@@ -1,4 +1,3 @@
-// include/io/StreamWrapper.hpp
 #ifndef STREAMWRAPPER_HPP
 #define STREAMWRAPPER_HPP
 
@@ -84,7 +83,7 @@ public:
     void close() override;
 };
 
-} // namespace io
-} // namespace compression
+} 
+} 
 
 #endif

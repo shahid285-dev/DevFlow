@@ -6,7 +6,6 @@
 #include <filesystem>
 #include <zlib.h>
 
-using namespace std;
 
 namespace metrics {
 

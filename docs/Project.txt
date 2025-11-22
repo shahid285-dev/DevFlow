@@ -86,3 +86,86 @@ plugins/
 └── ...
 
 getting function,method ,class usages 
+
+
+
+
+
+
+CompressionTool/
+├── CMakeLists.txt
+├── include/
+│ ├── compression/
+│ │ ├── ICompressionStrategy.hpp
+│ │ ├── ZlibCompressor.hpp
+│ │ ├── LZ4Compressor.hpp
+│ │ ├── CompressionFactory.hpp
+│ │ ├── CompressionResult.hpp
+│ │ ├── AsyncCompressor.hpp
+│ │ ├── BatchProcessor.hpp
+│ │ ├── StreamProcessor.hpp
+│ │ └── CompressionProfiles.hpp
+│ ├── common/
+│ │ ├── Types.hpp
+│ │ ├── Constants.hpp
+│ │ ├── ErrorCodes.hpp
+│ │ ├── MemoryPool.hpp
+│ │ └── Checksum.hpp
+│ ├── io/
+│ │ ├── FileHandler.hpp
+│ │ ├── MemoryBuffer.hpp
+│ │ ├── MemoryMappedFile.hpp
+│ │ └── StreamWrapper.hpp
+│ └── utils/
+│ ├── ProgressTracker.hpp
+│ ├── PerformanceMonitor.hpp
+│ ├── ThreadPool.hpp
+│ ├── BatteryAware.hpp
+│ └── ThermalMonitor.hpp
+├── src/
+│ ├── compression/
+│ │ ├── ICompressionStrategy.cpp
+│ │ ├── ZlibCompressor.cpp
+│ │ ├── LZ4Compressor.cpp
+│ │ ├── CompressionFactory.cpp
+│ │ ├── CompressionResult.cpp
+│ │ ├── AsyncCompressor.cpp
+│ │ ├── BatchProcessor.cpp
+│ │ ├── StreamProcessor.cpp
+│ │ └── CompressionProfiles.cpp
+│ ├── common/
+│ │ ├── Types.cpp
+│ │ ├── Constants.cpp
+│ │ ├── ErrorCodes.cpp
+│ │ ├── MemoryPool.cpp
+│ │ └── Checksum.cpp
+│ ├── io/
+│ │ ├── FileHandler.cpp
+│ │ ├── MemoryBuffer.cpp
+│ │ ├── MemoryMappedFile.cpp
+│ │ └── StreamWrapper.cpp
+│ ├── utils/
+│ │ ├── ProgressTracker.cpp
+│ │ ├── PerformanceMonitor.cpp
+│ │ ├── ThreadPool.cpp
+│ │ ├── BatteryAware.cpp
+│ │ └── ThermalMonitor.cpp
+│ └── main/
+│ └── CompressionTool.cpp
+└── third_party/
+├── lz4/
+│ ├── lz4.h
+│ └── lz4.c
+└── zlib/
+├── zlib.h
+├── zconf.h
+├── adler32.c
+├── compress.c
+├── crc32.c
+├── deflate.c
+├── inflate.c
+├── inftrees.c
+├── inffast.c
+├── trees.c
+├── uncompr.c
+└── zutil.c

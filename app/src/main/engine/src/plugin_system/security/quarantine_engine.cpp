@@ -1,0 +1,9 @@
+/*
+
+Response mechanism
+contain threat by quarantine 
+Report incident to server 
+plugin lockdown mode 
+Automatic sampling 
+
+*/

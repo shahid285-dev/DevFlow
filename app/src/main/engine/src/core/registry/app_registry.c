@@ -18,14 +18,20 @@
 
 #define GUARD_MAGIC 0x8F3A5C67B2E1D409ULL
 #define REGISTRY_MAGIC 0xDEADBEEFCAFEBABEULL
+#define FUNCTION_REGISTRY_MAGIC 0xCAFEBABEDEADBEEFULL
 #define API_VALIDATION_MAGIC 0x12345678
 #define FINGERPRINT_INPUT_SIZE 512
-#define MAX_PROTECTED_REGIONS 8
+#define MAX_PROTECTED_REGIONS 16
+#define FUNCTION_GUARD_MAGIC 0xF1E2D3C4B5A69788ULL
 
 static app_registry_t global_registry = {0};
+static function_registry_t global_function_registry = {0};
 static _Atomic bool registry_locked = false;
+static _Atomic bool function_registry_locked = false;
 static _Atomic uint64_t registry_magic = 0;
+static _Atomic uint64_t function_registry_magic = 0;
 static _Atomic bool init_in_progress = false;
+static _Atomic bool function_registry_init_in_progress = false;
 
 #ifdef __ANDROID__
 static pthread_mutex_t registry_mutex = PTHREAD_MUTEX_INITIALIZER;
@@ -79,6 +85,10 @@ static bool compute_page_aligned_region(void* addr, size_t len, uintptr_t* start
     
     uintptr_t start = (uintptr_t)addr & ~(page_size - 1);
     uintptr_t end = ((uintptr_t)addr + len + page_size - 1) & ~(page_size - 1);
+    
+    if (end < start) {
+        return false;
+    }
     
     *start_out = start;
     *end_out = end;
@@ -148,6 +158,8 @@ static bool temporarily_unprotect_regions_for_write(void* addr, size_t len) {
     }
     
     bool found_any = false;
+    bool success = true;
+    
     for (size_t i = 0; i < protected_region_count; i++) {
         if (!protected_regions[i].owned_by_module) {
             continue;
@@ -158,16 +170,31 @@ static bool temporarily_unprotect_regions_for_write(void* addr, size_t len) {
         
         if (regions_overlap(target_start, target_end, region_start, region_end)) {
             if (mprotect(protected_regions[i].start, protected_regions[i].length, PROT_READ | PROT_WRITE) != 0) {
-                pthread_mutex_unlock(&registry_mutex);
-                return false;
+                success = false;
+                break;
             }
             protected_regions[i].protected = false;
             found_any = true;
         }
     }
     
+    if (!success) {
+        for (size_t i = 0; i < protected_region_count; i++) {
+            if (!protected_regions[i].owned_by_module || !protected_regions[i].protected) {
+                continue;
+            }
+            
+            uintptr_t region_start = (uintptr_t)protected_regions[i].start;
+            uintptr_t region_end = region_start + protected_regions[i].length;
+            
+            if (regions_overlap(target_start, target_end, region_start, region_end)) {
+                mprotect(protected_regions[i].start, protected_regions[i].length, PROT_READ);
+            }
+        }
+    }
+    
     pthread_mutex_unlock(&registry_mutex);
-    return found_any;
+    return found_any && success;
 }
 
 static bool restore_regions_protection(void* addr, size_t len) {
@@ -180,8 +207,10 @@ static bool restore_regions_protection(void* addr, size_t len) {
     }
     
     bool found_any = false;
+    bool success = true;
+    
     for (size_t i = 0; i < protected_region_count; i++) {
-        if (!protected_regions[i].owned_by_module) {
+        if (!protected_regions[i].owned_by_module || protected_regions[i].protected) {
             continue;
         }
         
@@ -190,16 +219,31 @@ static bool restore_regions_protection(void* addr, size_t len) {
         
         if (regions_overlap(target_start, target_end, region_start, region_end)) {
             if (mprotect(protected_regions[i].start, protected_regions[i].length, PROT_READ) != 0) {
-                pthread_mutex_unlock(&registry_mutex);
-                return false;
+                success = false;
+                break;
             }
             protected_regions[i].protected = true;
             found_any = true;
         }
     }
     
+    if (!success) {
+        for (size_t i = 0; i < protected_region_count; i++) {
+            if (!protected_regions[i].owned_by_module || protected_regions[i].protected) {
+                continue;
+            }
+            
+            uintptr_t region_start = (uintptr_t)protected_regions[i].start;
+            uintptr_t region_end = region_start + protected_regions[i].length;
+            
+            if (regions_overlap(target_start, target_end, region_start, region_end)) {
+                mprotect(protected_regions[i].start, protected_regions[i].length, PROT_READ | PROT_WRITE);
+            }
+        }
+    }
+    
     pthread_mutex_unlock(&registry_mutex);
-    return found_any;
+    return found_any && success;
 }
 
 static void unlock_owned_regions(void) {
@@ -286,13 +330,13 @@ static bool validate_api_structure(const arch_detector_api_t* api) {
         return false;
     }
     
-    char test_path[2];
+    char test_path[512];
     const char* binary_path = api->get_binary_path(test_path);
     if (binary_path == NULL) {
         return false;
     }
     
-    size_t path_len = strlen(binary_path);
+    size_t path_len = strnlen(binary_path, sizeof(test_path) - 1);
     if (path_len == 0 || path_len > 256) {
         return false;
     }
@@ -300,48 +344,55 @@ static bool validate_api_structure(const arch_detector_api_t* api) {
     return true;
 }
 
+
 static bool compute_arch_fingerprint(const arch_detector_api_t* api, uint8_t* fingerprint) {
     if (api == NULL || fingerprint == NULL) return false;
     
     uint8_t buffer[FINGERPRINT_INPUT_SIZE];
     size_t offset = 0;
-    const size_t max_offset = sizeof(buffer) - 1;
+    const size_t buf_sz = sizeof(buffer);
     
     const char* api_version = "ARCH_DETECTOR_API_V1";
     size_t version_len = strlen(api_version);
-    if (offset + version_len > max_offset) return false;
+    if (offset + version_len > buf_sz) return false;
     memcpy(buffer + offset, api_version, version_len);
     offset += version_len;
     
     const char* func_names = "get_arch_info|get_abi|is_arch_supported|get_binary_path";
     size_t names_len = strlen(func_names);
-    if (offset + names_len > max_offset) return false;
+    if (offset + names_len > buf_sz) return false;
     memcpy(buffer + offset, func_names, names_len);
     offset += names_len;
     
     uint32_t api_magic = API_VALIDATION_MAGIC;
-    if (offset + sizeof(api_magic) > max_offset) return false;
+    if (offset + sizeof(api_magic) > buf_sz) return false;
     memcpy(buffer + offset, &api_magic, sizeof(api_magic));
     offset += sizeof(api_magic);
     
     const char* abi = api->get_abi();
     if (abi != NULL) {
-        size_t abi_len = strnlen(abi, 64);
-        if (offset + 64 > max_offset) return false;
+        if (offset + 64 > buf_sz) return false;
         memset(buffer + offset, 0, 64);
-        memcpy(buffer + offset, abi, abi_len);
+        size_t abi_len = strnlen(abi, 63);
+        if (abi_len > 0) {
+            memcpy(buffer + offset, abi, abi_len);
+        }
         offset += 64;
     }
     
     char dummy_path[2] = "";
     const char* binary_path = api->get_binary_path(dummy_path);
     if (binary_path != NULL) {
-        size_t path_len = strnlen(binary_path, 256);
-        if (offset + 256 > max_offset) return false;
+        if (offset + 256 > buf_sz) return false;
         memset(buffer + offset, 0, 256);
-        memcpy(buffer + offset, binary_path, path_len);
+        size_t path_len = strnlen(binary_path, 255);
+        if (path_len > 0) {
+            memcpy(buffer + offset, binary_path, path_len);
+        }
         offset += 256;
     }
+    
+    if (offset > buf_sz) return false;
     
 #ifdef __ANDROID__
     EVP_MD_CTX* md_ctx = EVP_MD_CTX_new();
@@ -379,6 +430,7 @@ static inline uint64_t host_to_little_endian64(uint64_t value) {
 #endif
 }
 
+
 static bool build_canonical_buffer(const app_registry_t* reg, uint8_t* buf, size_t buf_size, size_t* out_len) {
     if (!reg || !buf || !out_len || buf_size < 256) {
         return false;
@@ -386,28 +438,88 @@ static bool build_canonical_buffer(const app_registry_t* reg, uint8_t* buf, size
     
     memset(buf, 0, buf_size);
     size_t off = 0;
-    const size_t max_off = buf_size - 1;
+    const size_t buf_sz = buf_size;
     
     uint32_t version_le = host_to_little_endian32(reg->version);
-    if (off + sizeof(version_le) > max_off) return false;
+
+    if (off + sizeof(version_le) > buf_sz) return false;
     memcpy(buf + off, &version_le, sizeof(version_le));
     off += sizeof(version_le);
     
-    if (off + APP_VERSION_MAX > max_off) return false;
+
+    if (off + APP_VERSION_MAX > buf_sz) return false;
     memcpy(buf + off, reg->app_version, APP_VERSION_MAX);
     off += APP_VERSION_MAX;
     
-    if (off + ARCH_FINGERPRINT_SIZE > max_off) return false;
+
+    if (off + ARCH_FINGERPRINT_SIZE > buf_sz) return false;
     memcpy(buf + off, reg->arch_fingerprint, ARCH_FINGERPRINT_SIZE);
     off += ARCH_FINGERPRINT_SIZE;
     
     uint64_t guard_le = host_to_little_endian64(reg->guard_magic);
-    if (off + sizeof(guard_le) > max_off) return false;
+
+    if (off + sizeof(guard_le) > buf_sz) return false;
     memcpy(buf + off, &guard_le, sizeof(guard_le));
     off += sizeof(guard_le);
     
     *out_len = off;
-    return true;
+    return off <= buf_sz;
+}
+
+static bool build_function_registry_canonical_buffer(const function_registry_t* reg, uint8_t* buf, size_t buf_size, size_t* out_len) {
+    if (!reg || !buf || !out_len || buf_size < 1024) {
+        return false;
+    }
+    
+    memset(buf, 0, buf_size);
+    size_t off = 0;
+    const size_t buf_sz = buf_size;
+    
+    uint64_t count_le = host_to_little_endian64(reg->count);
+    if (off + sizeof(count_le) > buf_sz) return false;
+    memcpy(buf + off, &count_le, sizeof(count_le));
+    off += sizeof(count_le);
+    
+    uint64_t guard_le = host_to_little_endian64(reg->guard_magic);
+    if (off + sizeof(guard_le) > buf_sz) return false;
+    memcpy(buf + off, &guard_le, sizeof(guard_le));
+    off += sizeof(guard_le);
+    
+    for (size_t i = 0; i < reg->count && i < MAX_SECURE_FUNCTIONS; i++) {
+        const secure_function_t* func = &reg->functions[i];
+        
+
+        if (off + FUNCTION_NAME_MAX > buf_sz) return false;
+        size_t name_len = strnlen(func->name, FUNCTION_NAME_MAX - 1);
+        memset(buf + off, 0, FUNCTION_NAME_MAX);
+        memcpy(buf + off, func->name, name_len);
+        off += FUNCTION_NAME_MAX;
+        
+        if (off + FUNCTION_SIGNATURE_MAX > buf_sz) return false;
+        size_t sig_len = strnlen(func->signature, FUNCTION_SIGNATURE_MAX - 1);
+        memset(buf + off, 0, FUNCTION_SIGNATURE_MAX);
+        memcpy(buf + off, func->signature, sig_len);
+        off += FUNCTION_SIGNATURE_MAX;
+        
+        if (off + MODULE_NAME_MAX > buf_sz) return false;
+        size_t mod_len = strnlen(func->module_name, MODULE_NAME_MAX - 1);
+        memset(buf + off, 0, MODULE_NAME_MAX);
+        memcpy(buf + off, func->module_name, mod_len);
+        off += MODULE_NAME_MAX;
+        
+        uint64_t func_guard_le = host_to_little_endian64(func->guard_magic);
+        if (off + sizeof(func_guard_le) > buf_sz) return false;
+        memcpy(buf + off, &func_guard_le, sizeof(func_guard_le));
+        off += sizeof(func_guard_le);
+        
+        uint8_t enabled = func->enabled ? 1 : 0;
+        if (off + sizeof(enabled) > buf_sz) return false;
+        memcpy(buf + off, &enabled, sizeof(enabled));
+        off += sizeof(enabled);
+    }
+    
+    *out_len = off;
+    return off <= buf_sz;
 }
 
 static bool allocate_secure_hmac_key(void) {
@@ -415,7 +527,9 @@ static bool allocate_secure_hmac_key(void) {
     long page_size = get_page_size();
     if (page_size <= 0) return false;
     
-    size_t aligned_size = ((32 + page_size - 1) / page_size) * page_size;
+    size_t key_size = 32;
+    size_t aligned_size = ((key_size + page_size - 1) / page_size) * page_size;
+    if (aligned_size < key_size) return false;
     
     void* key_mem = mmap(NULL, aligned_size, PROT_READ | PROT_WRITE, 
                         MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
@@ -425,7 +539,8 @@ static bool allocate_secure_hmac_key(void) {
     
     hmac_key = (unsigned char*)key_mem;
     
-    if (!secure_random_bytes(hmac_key, 32)) {
+    if (!secure_random_bytes(hmac_key, key_size)) {
+        secure_zero(hmac_key, aligned_size);
         munmap(key_mem, aligned_size);
         hmac_key = NULL;
         return false;
@@ -438,7 +553,7 @@ static bool allocate_secure_hmac_key(void) {
         return false;
     }
     
-    atomic_store(&hmac_key_initialized, true);
+    atomic_store_explicit(&hmac_key_initialized, true, memory_order_release);
     return true;
 #else
     return false;
@@ -447,7 +562,7 @@ static bool allocate_secure_hmac_key(void) {
 
 static bool compute_registry_hmac_locked(const app_registry_t* reg, unsigned char* out) {
 #ifdef __ANDROID__
-    if (!atomic_load(&hmac_key_initialized) || hmac_key == NULL) {
+    if (!atomic_load_explicit(&hmac_key_initialized, memory_order_acquire) || hmac_key == NULL) {
         return false;
     }
     
@@ -459,13 +574,14 @@ static bool compute_registry_hmac_locked(const app_registry_t* reg, unsigned cha
     bool success = false;
     
     if (build_canonical_buffer(reg, canonical_buf, sizeof(canonical_buf), &canonical_len)) {
-        unsigned int hmac_len = 32;
+        int key_len = (int)sizeof(key_copy);
+        unsigned int hmac_len = (unsigned int)EVP_MD_size(EVP_sha256());
         const unsigned char* result = HMAC(EVP_sha256(), 
-                                          key_copy, 32,
+                                          key_copy, key_len,
                                           canonical_buf, canonical_len,
                                           out, &hmac_len);
         
-        success = (result != NULL && hmac_len == 32);
+        success = (result != NULL && hmac_len == EVP_MD_size(EVP_sha256()));
     }
     
     secure_zero(canonical_buf, sizeof(canonical_buf));
@@ -476,11 +592,113 @@ static bool compute_registry_hmac_locked(const app_registry_t* reg, unsigned cha
 #endif
 }
 
+static bool compute_function_registry_hmac_locked(const function_registry_t* reg, unsigned char* out) {
+#ifdef __ANDROID__
+    if (!atomic_load_explicit(&hmac_key_initialized, memory_order_acquire) || hmac_key == NULL) {
+        return false;
+    }
+    
+    uint8_t key_copy[32];
+    memcpy(key_copy, hmac_key, 32);
+    
+    uint8_t canonical_buf[2048];
+    size_t canonical_len = 0;
+    bool success = false;
+    
+    if (build_function_registry_canonical_buffer(reg, canonical_buf, sizeof(canonical_buf), &canonical_len)) {
+        int key_len = (int)sizeof(key_copy);
+        unsigned int hmac_len = (unsigned int)EVP_MD_size(EVP_sha256());
+        const unsigned char* result = HMAC(EVP_sha256(), 
+                                          key_copy, key_len,
+                                          canonical_buf, canonical_len,
+                                          out, &hmac_len);
+        
+        success = (result != NULL && hmac_len == EVP_MD_size(EVP_sha256()));
+    }
+    
+    secure_zero(canonical_buf, sizeof(canonical_buf));
+    secure_zero(key_copy, sizeof(key_copy));
+    return success;
+#else
+    return false;
+#endif
+}
+
+
+static bool compute_function_fingerprint(secure_function_t* func) {
+    if (!func || !func->function_ptr) return false;
+    
+#ifdef __ANDROID__
+    EVP_MD_CTX* md_ctx = EVP_MD_CTX_new();
+    if (md_ctx == NULL) {
+        return false;
+    }
+    
+    uint8_t buffer[FINGERPRINT_INPUT_SIZE];
+    size_t offset = 0;
+    const size_t buf_sz = sizeof(buffer);
+    
+    size_t name_len = strnlen(func->name, FUNCTION_NAME_MAX - 1);
+    if (offset + name_len > buf_sz) {
+        EVP_MD_CTX_free(md_ctx);
+        return false;
+    }
+    memcpy(buffer + offset, func->name, name_len);
+    offset += name_len;
+    
+    size_t sig_len = strnlen(func->signature, FUNCTION_SIGNATURE_MAX - 1);
+    if (offset + sig_len > buf_sz) {
+        EVP_MD_CTX_free(md_ctx);
+        return false;
+    }
+    memcpy(buffer + offset, func->signature, sig_len);
+    offset += sig_len;
+    
+    size_t mod_len = strnlen(func->module_name, MODULE_NAME_MAX - 1);
+    if (offset + mod_len > buf_sz) {
+        EVP_MD_CTX_free(md_ctx);
+        return false;
+    }
+    memcpy(buffer + offset, func->module_name, mod_len);
+    offset += mod_len;
+    
+    uint64_t guard_le = host_to_little_endian64(func->guard_magic);
+    if (offset + sizeof(guard_le) > buf_sz) {
+        EVP_MD_CTX_free(md_ctx);
+        return false;
+    }
+    memcpy(buffer + offset, &guard_le, sizeof(guard_le));
+    offset += sizeof(guard_le);
+    
+    uint64_t ptr_hash = (uint64_t)(uintptr_t)func->function_ptr;
+    uint64_t ptr_hash_le = host_to_little_endian64(ptr_hash);
+    if (offset + sizeof(ptr_hash_le) > buf_sz) {
+        EVP_MD_CTX_free(md_ctx);
+        return false;
+    }
+    memcpy(buffer + offset, &ptr_hash_le, sizeof(ptr_hash_le));
+    offset += sizeof(ptr_hash_le);
+    
+    bool success = false;
+    if (EVP_DigestInit_ex(md_ctx, EVP_sha256(), NULL) == 1 &&
+        EVP_DigestUpdate(md_ctx, buffer, offset) == 1) {
+        unsigned int md_len = 32;
+        success = (EVP_DigestFinal_ex(md_ctx, func->fingerprint, &md_len) == 1 && md_len == 32);
+    }
+    
+    EVP_MD_CTX_free(md_ctx);
+    secure_zero(buffer, sizeof(buffer));
+    return success;
+#else
+    return false;
+#endif
+}
+
 static void secure_wipe_hmac_key(void) {
 #ifdef __ANDROID__
     pthread_mutex_lock(&registry_mutex);
     
-    if (atomic_load(&hmac_key_initialized) && hmac_key != NULL) {
+    if (atomic_load_explicit(&hmac_key_initialized, memory_order_acquire) && hmac_key != NULL) {
         long page_size = get_page_size();
         size_t aligned_size = ((32 + page_size - 1) / page_size) * page_size;
         
@@ -488,7 +706,7 @@ static void secure_wipe_hmac_key(void) {
         secure_zero(hmac_key, aligned_size);
         munmap(hmac_key, aligned_size);
         hmac_key = NULL;
-        atomic_store(&hmac_key_initialized, false);
+        atomic_store_explicit(&hmac_key_initialized, false, memory_order_release);
     }
     
     pthread_mutex_unlock(&registry_mutex);
@@ -511,26 +729,30 @@ static bool constant_time_compare(const uint8_t* a, const uint8_t* b, size_t len
 
 static bool internal_verify_integrity(void) {
 #ifdef __ANDROID__
-    pthread_mutex_lock(&registry_mutex);
+    int trylock_rc = pthread_mutex_trylock(&registry_mutex);
+    bool locked_by_us = (trylock_rc == 0);
+    if (trylock_rc != 0 && trylock_rc != EBUSY) {
+        return false;
+    }
 #endif
     
     if (!atomic_load_explicit(&registry_locked, memory_order_acquire)) {
 #ifdef __ANDROID__
-        pthread_mutex_unlock(&registry_mutex);
+        if (locked_by_us) pthread_mutex_unlock(&registry_mutex);
 #endif
         return false;
     }
     
     if (atomic_load_explicit(&registry_magic, memory_order_acquire) != REGISTRY_MAGIC) {
 #ifdef __ANDROID__
-        pthread_mutex_unlock(&registry_mutex);
+        if (locked_by_us) pthread_mutex_unlock(&registry_mutex);
 #endif
         return false;
     }
     
     if (global_registry.guard_magic != GUARD_MAGIC) {
 #ifdef __ANDROID__
-        pthread_mutex_unlock(&registry_mutex);
+        if (locked_by_us) pthread_mutex_unlock(&registry_mutex);
 #endif
         return false;
     }
@@ -551,9 +773,102 @@ static bool internal_verify_integrity(void) {
     secure_zero(computed_hmac, sizeof(computed_hmac));
     
 #ifdef __ANDROID__
-    pthread_mutex_unlock(&registry_mutex);
+    if (locked_by_us) pthread_mutex_unlock(&registry_mutex);
 #endif
     return hmac_valid;
+}
+
+static bool internal_verify_function_registry_integrity(void) {
+#ifdef __ANDROID__
+    int trylock_rc = pthread_mutex_trylock(&registry_mutex);
+    bool locked_by_us = (trylock_rc == 0);
+    if (trylock_rc != 0 && trylock_rc != EBUSY) {
+        return false;
+    }
+#endif
+    
+    if (!atomic_load_explicit(&function_registry_locked, memory_order_acquire)) {
+#ifdef __ANDROID__
+        if (locked_by_us) pthread_mutex_unlock(&registry_mutex);
+#endif
+        return false;
+    }
+    
+    if (atomic_load_explicit(&function_registry_magic, memory_order_acquire) != FUNCTION_REGISTRY_MAGIC) {
+#ifdef __ANDROID__
+        if (locked_by_us) pthread_mutex_unlock(&registry_mutex);
+#endif
+        return false;
+    }
+    
+    if (global_function_registry.guard_magic != GUARD_MAGIC) {
+#ifdef __ANDROID__
+        if (locked_by_us) pthread_mutex_unlock(&registry_mutex);
+#endif
+        return false;
+    }
+    
+    for (size_t i = 0; i < global_function_registry.count && i < MAX_SECURE_FUNCTIONS; i++) {
+        if (global_function_registry.functions[i].guard_magic != FUNCTION_GUARD_MAGIC) {
+#ifdef __ANDROID__
+            if (locked_by_us) pthread_mutex_unlock(&registry_mutex);
+#endif
+            return false;
+        }
+    }
+    
+    unsigned char computed_hmac[32];
+    bool hmac_valid = false;
+    
+#ifdef __ANDROID__
+    bool hmac_success = compute_function_registry_hmac_locked(&global_function_registry, computed_hmac);
+#else
+    bool hmac_success = false;
+#endif
+    
+    if (hmac_success) {
+        hmac_valid = constant_time_compare(computed_hmac, global_function_registry.registry_hmac, 32);
+    }
+    
+    secure_zero(computed_hmac, sizeof(computed_hmac));
+    
+#ifdef __ANDROID__
+    if (locked_by_us) pthread_mutex_unlock(&registry_mutex);
+#endif
+    return hmac_valid;
+}
+
+static bool validate_function_call(const secure_function_t* func) {
+    if (!func) return false;
+    
+    if (func->guard_magic != FUNCTION_GUARD_MAGIC) {
+        return false;
+    }
+    
+    if (!func->enabled) {
+        return false;
+    }
+    
+    if (!func->function_ptr) {
+        return false;
+    }
+    
+    secure_function_t temp_func;
+    memcpy(&temp_func, func, sizeof(secure_function_t));
+    memset(temp_func.fingerprint, 0, sizeof(temp_func.fingerprint));
+    
+    uint8_t computed_fingerprint[32];
+    if (!compute_function_fingerprint(&temp_func)) {
+        secure_zero(&temp_func, sizeof(temp_func));
+        return false;
+    }
+    
+    memcpy(computed_fingerprint, temp_func.fingerprint, 32);
+    secure_zero(&temp_func, sizeof(temp_func));
+    
+    bool valid = constant_time_compare(computed_fingerprint, func->fingerprint, 32);
+    secure_zero(computed_fingerprint, sizeof(computed_fingerprint));
+    return valid;
 }
 
 bool get_app_registry_copy(app_registry_t* out) {
@@ -666,6 +981,10 @@ void cleanup_app_registry(void) {
         return;
     }
     
+#ifdef __ANDROID__
+    pthread_mutex_lock(&registry_mutex);
+#endif
+    
     if (atomic_load(&registry_locked)) {
         temporarily_unprotect_regions_for_write(&global_registry, sizeof(global_registry));
         memset(&global_registry, 0, sizeof(global_registry));
@@ -677,5 +996,232 @@ void cleanup_app_registry(void) {
         atomic_store_explicit(&registry_magic, 0, memory_order_release);
     }
     
+#ifdef __ANDROID__
+    pthread_mutex_unlock(&registry_mutex);
+#endif
+    
     atomic_store_explicit(&init_in_progress, false, memory_order_release);
+}
+
+bool initialize_function_registry(void) {
+    bool expected = false;
+    if (!atomic_compare_exchange_strong_explicit(&function_registry_init_in_progress, &expected, true, 
+                                               memory_order_acq_rel, memory_order_acquire)) {
+        return false;
+    }
+    
+    bool initialization_success = false;
+    
+#ifdef __ANDROID__
+    pthread_mutex_lock(&registry_mutex);
+#endif
+    
+    if (atomic_load(&function_registry_locked)) {
+        initialization_success = true;
+        goto cleanup;
+    }
+    
+    if (!atomic_load(&hmac_key_initialized)) {
+        goto cleanup;
+    }
+    
+    memset(&global_function_registry, 0, sizeof(function_registry_t));
+    global_function_registry.guard_magic = GUARD_MAGIC;
+    
+#ifdef __ANDROID__
+    if (!compute_function_registry_hmac_locked(&global_function_registry, global_function_registry.registry_hmac)) {
+#else
+    if (false) {
+#endif
+        goto cleanup;
+    }
+    
+    if (!lock_and_protect_region(&global_function_registry, sizeof(function_registry_t), true, true)) {
+        goto cleanup;
+    }
+    
+    atomic_store_explicit(&function_registry_magic, FUNCTION_REGISTRY_MAGIC, memory_order_release);
+    atomic_store_explicit(&function_registry_locked, true, memory_order_release);
+    initialization_success = true;
+
+cleanup:
+#ifdef __ANDROID__
+    pthread_mutex_unlock(&registry_mutex);
+#endif
+    
+    if (!initialization_success) {
+        memset(&global_function_registry, 0, sizeof(function_registry_t));
+    }
+    
+    atomic_store_explicit(&function_registry_init_in_progress, false, memory_order_release);
+    return initialization_success;
+}
+
+void* get_secure_function(const char* function_name) {
+    if (!function_name || !atomic_load(&function_registry_locked)) {
+        return NULL;
+    }
+    
+    size_t name_len = strnlen(function_name, FUNCTION_NAME_MAX);
+    if (name_len == 0 || name_len >= FUNCTION_NAME_MAX) {
+        return NULL;
+    }
+    
+#ifdef __ANDROID__
+    pthread_mutex_lock(&registry_mutex);
+#endif
+    
+    if (!internal_verify_function_registry_integrity()) {
+#ifdef __ANDROID__
+        pthread_mutex_unlock(&registry_mutex);
+#endif
+        return NULL;
+    }
+    
+    void* result = NULL;
+    for (size_t i = 0; i < global_function_registry.count && i < MAX_SECURE_FUNCTIONS; i++) {
+        secure_function_t* func = &global_function_registry.functions[i];
+        
+        if (strncmp(func->name, function_name, FUNCTION_NAME_MAX) == 0) {
+            if (validate_function_call(func)) {
+                result = func->function_ptr;
+            }
+            break;
+        }
+    }
+    
+#ifdef __ANDROID__
+    pthread_mutex_unlock(&registry_mutex);
+#endif
+    return result;
+}
+
+bool register_secure_function(const char* name, const char* signature, void* function_ptr, const char* module_name) {
+    if (!name || !signature || !function_ptr || !module_name || !atomic_load(&function_registry_locked)) {
+        return false;
+    }
+    
+    size_t name_len = strnlen(name, FUNCTION_NAME_MAX - 1);
+    size_t sig_len = strnlen(signature, FUNCTION_SIGNATURE_MAX - 1);
+    size_t mod_len = strnlen(module_name, MODULE_NAME_MAX - 1);
+    
+    if (name_len == 0 || name_len >= FUNCTION_NAME_MAX ||
+        sig_len == 0 || sig_len >= FUNCTION_SIGNATURE_MAX ||
+        mod_len == 0 || mod_len >= MODULE_NAME_MAX) {
+        return false;
+    }
+    
+#ifdef __ANDROID__
+    pthread_mutex_lock(&registry_mutex);
+#endif
+    
+    if (!internal_verify_function_registry_integrity()) {
+#ifdef __ANDROID__
+        pthread_mutex_unlock(&registry_mutex);
+#endif
+        return false;
+    }
+    
+    if (global_function_registry.count >= MAX_SECURE_FUNCTIONS) {
+#ifdef __ANDROID__
+        pthread_mutex_unlock(&registry_mutex);
+#endif
+        return false;
+    }
+    
+    for (size_t i = 0; i < global_function_registry.count; i++) {
+        if (strncmp(global_function_registry.functions[i].name, name, FUNCTION_NAME_MAX) == 0) {
+#ifdef __ANDROID__
+            pthread_mutex_unlock(&registry_mutex);
+#endif
+            return false;
+        }
+    }
+    
+    secure_function_t new_func;
+    memset(&new_func, 0, sizeof(secure_function_t));
+    
+    strncpy(new_func.name, name, FUNCTION_NAME_MAX - 1);
+    new_func.name[FUNCTION_NAME_MAX - 1] = '\0';
+    
+    strncpy(new_func.signature, signature, FUNCTION_SIGNATURE_MAX - 1);
+    new_func.signature[FUNCTION_SIGNATURE_MAX - 1] = '\0';
+    
+    strncpy(new_func.module_name, module_name, MODULE_NAME_MAX - 1);
+    new_func.module_name[MODULE_NAME_MAX - 1] = '\0';
+    
+    new_func.function_ptr = function_ptr;
+    new_func.enabled = true;
+    new_func.guard_magic = FUNCTION_GUARD_MAGIC;
+    
+    if (!compute_function_fingerprint(&new_func)) {
+#ifdef __ANDROID__
+        pthread_mutex_unlock(&registry_mutex);
+#endif
+        secure_zero(&new_func, sizeof(new_func));
+        return false;
+    }
+    
+    size_t index = global_function_registry.count;
+    memcpy(&global_function_registry.functions[index], &new_func, sizeof(secure_function_t));
+    global_function_registry.count++;
+    
+    secure_zero(&new_func, sizeof(new_func));
+    
+#ifdef __ANDROID__
+    if (!compute_function_registry_hmac_locked(&global_function_registry, global_function_registry.registry_hmac)) {
+        memset(global_function_registry.registry_hmac, 0, sizeof(global_function_registry.registry_hmac));
+        global_function_registry.count--;
+        memset(&global_function_registry.functions[index], 0, sizeof(secure_function_t));
+        pthread_mutex_unlock(&registry_mutex);
+        return false;
+    }
+    
+    pthread_mutex_unlock(&registry_mutex);
+#endif
+    
+    return true;
+}
+
+bool verify_function_registry_integrity(void) {
+    return atomic_load(&function_registry_locked) && internal_verify_function_registry_integrity();
+}
+
+void cleanup_function_registry(void) {
+    bool expected = false;
+    if (!atomic_compare_exchange_strong_explicit(&function_registry_init_in_progress, &expected, true, 
+                                               memory_order_acq_rel, memory_order_acquire)) {
+        return;
+    }
+    
+#ifdef __ANDROID__
+    pthread_mutex_lock(&registry_mutex);
+#endif
+    
+    if (atomic_load(&function_registry_locked)) {
+        temporarily_unprotect_regions_for_write(&global_function_registry, sizeof(function_registry_t));
+        memset(&global_function_registry, 0, sizeof(function_registry_t));
+        
+        atomic_store_explicit(&function_registry_locked, false, memory_order_release);
+        atomic_store_explicit(&function_registry_magic, 0, memory_order_release);
+    }
+    
+#ifdef __ANDROID__
+    pthread_mutex_unlock(&registry_mutex);
+#endif
+    
+    atomic_store_explicit(&function_registry_init_in_progress, false, memory_order_release);
+}
+
+bool is_function_registry_locked(void) {
+    return atomic_load_explicit(&function_registry_locked, memory_order_acquire) && 
+           internal_verify_function_registry_integrity();
+}
+
+bool lock_function_registry_memory(void) {
+#ifdef __ANDROID__
+    return lock_and_protect_region(&global_function_registry, sizeof(function_registry_t), true, true);
+#else
+    return false;
+#endif
 }

@@ -1,54 +1,52 @@
-cmake_minimum_required(VERSION 3.21)
-project(MyProject CXX)
+cmake_minimum_required(VERSION 3.18.1)
 
-set(CMAKE_CXX_STANDARD 17)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
+project("devflow")
 
-# Add executable with main.cpp
-add_executable(MyProject
-src/main.cpp
-src/helper_functions.cpp
-include/helper_functions.h
+# Registry library
+add_library(app_registry SHARED
+app_registry/app_registry.c
+)
+
+# Architecture detection library
+add_library(architecture_detector STATIC
+architecture/architecture_detector.c
+)
+
+# Filesystem library
+add_library(filesystem STATIC
+filesystem/filesystem.c
+)
+
+# Network library
+add_library(network STATIC
+network/network.c
+)
+
+# Process library
+add_library(process STATIC
+process/process.c
+)
+
+# Main app library (links everything together)
+add_library(mobile_ide SHARED
+main.c
+)
+
+# Link main app with all components
+target_link_libraries(mobile_ide
+app_registry
+architecture_detector
+filesystem
+network
+process
+log
 )
 
 # Include directories
-target_include_directories(Devflow PRIVATE include)
-
-# Dummy source files that don't exist yet (CLion will show these as missing)
-target_sources(Devflow PRIVATE
-src/utilities.cpp
-src/calculations.cpp
-include/utilities.h
-include/calculations.h
+target_include_directories(mobile_ide PRIVATE
+${CMAKE_SOURCE_DIR}/app_registry
+${CMAKE_SOURCE_DIR}/architecture
+${CMAKE_SOURCE_DIR}/filesystem
+${CMAKE_SOURCE_DIR}/network
+${CMAKE_SOURCE_DIR}/process
 )
-
-# Optional: Add some compiler options
-target_compile_options(Devflow PRIVATE
--Wall
--Wextra
--O2
-)
-
-add_library(my_library STATIC
-lib/src/lib_utils.cpp
-lib/include/lib_utils.h
-)
-
-target_include_directories(my_library PUBLIC lib/include)
-
-# Link the library to the main executable
-target_link_libraries(Devflow PRIVATE my_library)
-
-add_subdirectory(tests)
-
-find_package(Threads REQUIRED)
-target_link_libraries(Devflow PRIVATE Threads::Threads)
-
-
-configure_file(
-"${PROJECT_SOURCE_DIR}/config.h.in"
-"${PROJECT_BINARY_DIR}/config.h"
-)
-
-
-target_include_directories(Devflow PRIVATE "${PROJECT_BINARY_DIR}")

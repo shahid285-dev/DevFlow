@@ -1,0 +1,151 @@
+{
+  "id": "php-language",
+  "name": "PHP Runtime & Composer Manager",
+  "version": "1.0.0",
+  "type": "language",
+  "category": "development/runtime",
+  "description": "Full PHP runtime with Composer package management, syntax highlighting, and code execution for mobile development.",
+  "author": "DevFlow Team",
+  "license": "MIT",
+  "size": "15.2 MB",
+  "permissions": [
+    "network",
+    "file_system",
+    "native_bridge",
+    "process_execution"
+  ],
+  "components": {
+    "native": [
+      {
+        "file": "native/php_runner.so",
+        "arch": ["arm64-v8a", "armeabi-v7a", "x86_64"],
+        "entry_point": "init_php_runtime",
+        "description": "High-performance PHP interpreter for executing PHP scripts and managing runtime environment."
+      },
+      {
+        "file": "native/composer_manager.so",
+        "arch": ["arm64-v8a", "armeabi-v7a", "x86_64"],
+        "entry_point": "init_composer_manager",
+        "description": "Composer package manager for dependency resolution, installation, and autoload generation."
+      },
+      {
+        "file": "native/php_fs_bridge.so",
+        "arch": ["arm64-v8a", "armeabi-v7a", "x86_64"],
+        "entry_point": "init_php_fs_bridge",
+        "description": "Filesystem bridge for PHP file operations, project structure management, and vendor directory handling."
+      }
+    ],
+    "js": [
+      {
+        "file": "js/php_runner.js",
+        "entry_point": "PHPRunner.setup",
+        "description": "Main PHP execution engine with code evaluation, file execution, and runtime management."
+      },
+      {
+        "file": "js/composer_ui.js",
+        "entry_point": "ComposerManager.setup",
+        "description": "Package management interface for Composer operations, dependency search, and project configuration."
+      },
+      {
+        "file": "js/php_autocomplete.js",
+        "entry_point": "PHPAutocomplete.setup",
+        "description": "Intelligent code completion for PHP functions, classes, and Composer packages."
+      }
+    ]
+  },
+  "config": {
+    "php_versions": "config/php_versions.json",
+    "composer_config": "config/composer_config.json",
+    "extensions": "config/extensions_list.json",
+    "description": "PHP runtime configurations, version mappings, and extension dependencies."
+  },
+  "assets": {
+    "icons": [
+      {
+        "file": "assets/icons/php_icon.png",
+        "type": "plugin_icon",
+        "purpose": "Visual icon for PHP Language plugin"
+      },
+      {
+        "file": "assets/icons/composer_icon.png",
+        "type": "action_icon",
+        "purpose": "Icon for Composer package manager actions"
+      },
+      {
+        "file": "assets/icons/php_file.png",
+        "type": "file_icon",
+        "purpose": "Used for PHP source files in project explorer"
+      }
+    ],
+    "templates": [
+      {
+        "path": "assets/templates/basic_script.php",
+        "name": "Basic PHP Script",
+        "description": "Starter template for PHP scripts with common examples"
+      },
+      {
+        "path": "assets/templates/web_app/",
+        "name": "PHP Web Application",
+        "description": "Complete web app template with Composer configuration"
+      },
+      {
+        "path": "assets/templates/class_template.php",
+        "name": "PHP Class Template",
+        "description": "Template for creating PHP classes with proper structure"
+      },
+      {
+        "path": "assets/templates/api_template.php",
+        "name": "API Endpoint Template",
+        "description": "Template for building REST API endpoints"
+      }
+    ],
+    "documentation": [
+      {
+        "file": "assets/docs/quick_start.md",
+        "title": "PHP Plugin Quick Start",
+        "description": "Get started with PHP development in mobile IDE - installation, basic usage, and examples."
+      },
+      {
+        "file": "assets/docs/composer_guide.md",
+        "title": "Composer Package Manager Guide",
+        "description": "Complete guide to dependency management with Composer in mobile environment."
+      },
+      {
+        "file": "assets/docs/api_reference.md",
+        "title": "PHP Runtime API Reference",
+        "description": "Detailed API documentation for PHP execution, file operations, and Composer integration."
+      },
+      {
+        "file": "assets/docs/troubleshooting.md",
+        "title": "Troubleshooting & Performance",
+        "description": "Common issues, solutions, and performance optimization tips for PHP on mobile."
+      }
+    ]
+  },
+  "capabilities": {
+    "code_execution": true,
+    "package_management": true,
+    "syntax_highlighting": true,
+    "autocomplete": true,
+    "file_operations": true,
+    "web_server": true
+  },
+  "requirements": {
+    "min_core_version": "1.0.0",
+    "android_api": 21,
+    "storage": "50 MB for PHP runtime, Composer, and vendor dependencies",
+    "memory": "64 MB minimum for PHP process execution"
+  },
+  "dependencies": [],
+  "compatibility": {
+    "file_extensions": [".php", ".phtml", ".php3", ".php4", ".php5", ".php7", ".phps", ".json"],
+    "mime_types": ["application/x-php", "text/x-php", "application/json"],
+    "architectures": ["arm64-v8a", "armeabi-v7a", "x86_64"],
+    "providers": ["termux", "packagist", "github"]
+  },
+  "hooks": {
+    "on_activate": "PHPRunner.setup",
+    "on_file_open": "PHPAutocomplete.analyze",
+    "on_project_load": "ComposerManager.scan"
+  }
+}

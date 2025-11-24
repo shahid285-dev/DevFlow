@@ -1,0 +1,30 @@
+{
+  "supported_versions": [
+    {
+      "version": "8.3.0",
+      "architecture": "arm64-v8a",
+      "binary_url": "https://packages.termux.dev/apt/termux-main/pool/main/p/php/php_8.3.0_aarch64.deb",
+      "size": 4200000,
+      "checksum": "sha256:abc123..."
+    },
+    {
+      "version": "8.3.0", 
+      "architecture": "armeabi-v7a",
+      "binary_url": "https://packages.termux.dev/apt/termux-main/pool/main/p/php/php_8.3.0_arm.deb",
+      "size": 3900000,
+      "checksum": "sha256:def456..."
+    },
+    {
+      "version": "8.3.0",
+      "architecture": "x86_64", 
+      "binary_url": "https://packages.termux.dev/apt/termux-main/pool/main/p/php/php_8.3.0_x86_64.deb",
+      "size": 4500000,
+      "checksum": "sha256:ghi789..."
+    }
+  ],
+  "composer": {
+    "version": "2.6.0",
+    "download_url": "https://getcomposer.org/download/latest-stable/composer.phar",
+    "size": 1900000
+  }
+}

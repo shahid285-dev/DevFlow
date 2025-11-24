@@ -1,0 +1,12 @@
+{
+    "core_extensions": [
+        "core", "date", "libxml", "openssl", "pcre", "zlib",
+        "filter", "hash", "reflection", "SPL", "standard"
+    ],
+    "composer_required": [
+        "phar", "json", "mbstring", "zip"
+    ],
+    "optional_extensions": [
+        "curl", "sqlite3", "PDO", "pdo_sqlite", "session", "sodium"
+    ]
+}

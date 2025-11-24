@@ -5,6 +5,8 @@ cdn_resolver.plugin/
 │ └── fs_bridge.so
 ├── js/
 │ └── resolver.js
+├── java/
+│ └── jni_bridge.java 
 ├── config/
 │ └── cdn_providers.json
 └── assets/

@@ -1,0 +1,34 @@
+php_language.plugin/
+├── manifest.json
+├── native/
+│ ├── php_runner.so
+│ ├── composer_manager.so
+│ └── php_fs_bridge.so
+├── js/
+│ ├── php_runner.js
+│ ├── composer_ui.js
+│ └── php_autocomplete.js
+├── java/
+│ └── php_jni_bridge.java
+├── config/
+│ ├── php_versions.json
+│ ├── composer_config.json
+│ └── extensions_list.json
+└── assets/
+├── icons/
+│ ├── php_icon.png
+│ ├── composer_icon.png
+│ └── php_file.png
+├── templates/
+│ ├── basic_script.php
+│ ├── web_app/
+│ │ ├── index.php
+│ │ ├── composer.json
+│ │ └── .htaccess
+│ ├── class_template.php
+│ └── api_template.php
+└── docs/
+├── quick_start.md
+├── composer_guide.md
+├── api_reference.md
+└── troubleshooting.md

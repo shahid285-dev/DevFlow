@@ -22,13 +22,11 @@
 
 namespace EventSystem {
 
-// ----------------- Logger interfaces -----------------
 class ILogger {
 public:
     virtual ~ILogger() = default;
     enum class Level { Debug, Info, Warning, Error, Critical };
 
-    // Logger must not throw; wrapper in engine will catch exceptions.
     virtual void log(Level level, const std::string& message) noexcept = 0;
 };
 
@@ -40,7 +38,7 @@ public:
             std::cerr << "[" << level_str[static_cast<int>(level)] << "] "
                       << message << std::endl;
         } catch (...) {
-            // swallow
+            
         }
     }
 };
@@ -50,7 +48,7 @@ public:
     void log(Level, const std::string&) noexcept override {}
 };
 
-// ----------------- Events & handlers -----------------
+
 class IEvent {
 public:
     virtual ~IEvent() = default;
@@ -177,7 +175,6 @@ private:
     uint64_t subscription_id_;
 };
 
-// ----------------- Exceptions -----------------
 class EventEngineException : public std::runtime_error {
 public:
     explicit EventEngineException(const std::string& message)
@@ -202,12 +199,10 @@ public:
         : EventEngineException("Invalid argument: " + message) {}
 };
 
-// ----------------- Dispatcher -----------------
 using HandlerId = uint64_t;
 
 class EventDispatcher {
 public:
-    // sensible defaults and hard limits
     static constexpr size_t DEFAULT_MAX_QUEUE_SIZE = 1000;
     static constexpr size_t DEFAULT_MAX_HANDLERS = 10000;
     static constexpr size_t ABSOLUTE_MAX_HANDLERS = 1000000;
@@ -218,7 +213,7 @@ public:
     explicit EventDispatcher(std::shared_ptr<ILogger> logger = nullptr);
     ~EventDispatcher() noexcept;
 
-    // -- templates (implemented inline so header-only instantiation works) --
+
     template<typename EventType, typename HandlerClass>
     HandlerId subscribe(std::shared_ptr<HandlerClass> handler,
                        typename EventHandler<EventType, HandlerClass>::HandlerFunction function);
@@ -237,18 +232,15 @@ public:
     template<typename EventType, typename... Args>
     std::future<void> dispatch_async(Args&&... args);
 
-    // runtime configuration
     void set_max_queue_size(size_t size);
     void set_max_handlers(size_t max_handlers);
     void set_handler_timeout(std::chrono::milliseconds timeout);
     void set_logger(std::shared_ptr<ILogger> logger);
 
-    // control
     void start_processing() noexcept;
     void stop_processing() noexcept;
     bool wait_until_empty(std::chrono::milliseconds timeout) const;
 
-    // introspection
     size_t get_pending_events() const noexcept;
     size_t get_handler_count() const noexcept;
     void clear_pending_events() noexcept;
@@ -268,7 +260,6 @@ public:
     void set_exception_callback(ExceptionCallback callback);
 
 private:
-    // internal helpers
     void process_events() noexcept;
     void cleanup_inactive_handlers() noexcept;
     HandlerId generate_handler_id_unsafe();
@@ -281,16 +272,14 @@ private:
     void invoke_exception_callback(HandlerId handler_id, const std::exception& e) noexcept;
     void decrement_handler_count_safe() noexcept;
 
-    // Handler entry in the handler map
     struct HandlerEntry {
         HandlerId id;
         std::shared_ptr<IEventHandler> handler;
         std::shared_ptr<std::atomic<bool>> pending_execution{std::make_shared<std::atomic<bool>>(false)};
         std::shared_ptr<std::atomic<bool>> removed{std::make_shared<std::atomic<bool>>(false)};
-        bool counted{true}; // indicates whether total_handler_count_ already accounts this entry
+        bool counted{true}; 
     };
 
-    // Event wrapper stored in the queue; stored via shared_ptr in queue to ensure stable addresses
     struct EventWrapper {
         std::shared_ptr<IEvent> event;
         std::shared_ptr<std::promise<void>> promise;
@@ -301,7 +290,6 @@ private:
             : event(std::move(e)), promise(std::move(p)), promise_set(std::make_shared<std::atomic<bool>>(false)) {}
     };
 
-    // core data structures
     std::unordered_map<std::type_index, std::vector<HandlerEntry>> handlers_;
     mutable std::mutex handlers_mutex_;
 
@@ -309,7 +297,6 @@ private:
     size_t max_handlers_{DEFAULT_MAX_HANDLERS};
     std::chrono::milliseconds handler_timeout_{0};
 
-    // use shared_ptr<EventWrapper> in the queue to avoid pointer/iterator invalidation
     std::deque<std::shared_ptr<EventWrapper>> event_queue_;
     mutable std::mutex queue_mutex_;
     std::condition_variable queue_condition_;
@@ -324,17 +311,13 @@ private:
 
     std::atomic<size_t> cleanup_counter_{0};
 
-    // constants (also defined above as static constexpr)
-    // logging & callbacks
     std::shared_ptr<ILogger> logger_;
     ExceptionCallback exception_callback_;
     std::mutex callback_mutex_;
 
-    // single mutex to serialize thread start/stop or other global-order ops
     mutable std::mutex control_mutex_;
 };
 
-// ----------------- ScopedSubscription -----------------
 class ScopedSubscription {
 public:
     ScopedSubscription() = default;
@@ -358,7 +341,6 @@ private:
     HandlerId id_{0};
 };
 
-// ----------------- EventChannel (inline templates) -----------------
 template<typename PayloadType>
 class EventChannel {
 public:
@@ -391,9 +373,6 @@ private:
     EventDispatcher& dispatcher_;
 };
 
-// ----------------- Template definitions for EventDispatcher -----------------
-// NOTE: These are implemented here so that template instantiations are available
-// at compile/link time for any EventType the user uses.
 
 template<typename EventType, typename HandlerClass>
 HandlerId EventDispatcher::subscribe(std::shared_ptr<HandlerClass> handler,
@@ -414,7 +393,6 @@ HandlerId EventDispatcher::subscribe(std::shared_ptr<HandlerClass> handler,
         throw MaxHandlersExceededException();
     }
 
-    // create handler object first (no id yet)
     HandlerId id = generate_handler_id_unsafe();
     auto handler_ptr = std::make_shared<EventHandler<EventType, HandlerClass>>(handler, function, id);
 
@@ -428,7 +406,6 @@ HandlerId EventDispatcher::subscribe(std::shared_ptr<HandlerClass> handler,
     handlers_[std::type_index(typeid(EventType))].push_back(std::move(entry));
     total_handler_count_.fetch_add(1, std::memory_order_acq_rel);
 
-    // log outside of locked regions by scheduling message (caller can log)
     if (logger_) {
         try {
             logger_->log(ILogger::Level::Debug, "Handler subscribed with ID: " + std::to_string(id));
@@ -450,7 +427,7 @@ HandlerId EventDispatcher::subscribe(Function&& function) {
         throw MaxHandlersExceededException();
     }
 
-    // create wrapper for lambda handler
+
     struct FunctionWrapper {
         std::function<void(const typename EventType::payload_type&)> function;
         ExceptionCallback exception_callback;
@@ -488,7 +465,6 @@ HandlerId EventDispatcher::subscribe(Function&& function) {
         }
     };
 
-    // Generate id and create event handler wrapper
     HandlerId id = generate_handler_id_unsafe();
     auto wrapper = std::make_shared<FunctionWrapper>(std::forward<Function>(function), id, logger_, exception_callback_);
 
@@ -575,11 +551,9 @@ void EventDispatcher::dispatch(Args&&... args) noexcept {
     try {
         event = std::make_shared<EventType>(std::forward<Args>(args)...);
     } catch (...) {
-        // construction failed; nothing to do
         return;
     }
 
-    // snapshot handlers
     std::vector<std::shared_ptr<IEventHandler>> snapshot;
     {
         std::lock_guard<std::mutex> lock(handlers_mutex_);
@@ -598,19 +572,16 @@ void EventDispatcher::dispatch(Args&&... args) noexcept {
         try {
             if (h && !h->is_removed()) h->try_handle_event(event);
         } catch (const std::exception& ex) {
-            // notify user callback but don't throw from here
             try {
                 invoke_exception_callback(h->get_subscription_id(), ex);
             } catch (...) {}
         } catch (...) {
-            // unknown
         }
     }
 }
 
 template<typename EventType, typename... Args>
 std::future<void> EventDispatcher::dispatch_async(Args&&... args) {
-    // create shared promise which will be stored in queue
     auto promise_ptr = std::make_shared<std::promise<void>>();
     std::future<void> fut = promise_ptr->get_future();
 

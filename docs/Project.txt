@@ -103,3 +103,138 @@ providers
 6. Gitea - gitea.com
 7. Azure DevOps Repos - dev.azure.com
 8. Gerrit - gerritcodereview.com
+
+
+
+
+
+
+archive_engine/
+│
+├── CMakeLists.txt
+├── README.md
+│
+├── include/
+│ ├── archive_engine/
+│ │ ├── ArchiveEngine.h # Main C++ API (public)
+│ │ ├── ArchiveReader.h
+│ │ ├── ArchiveWriter.h
+│ │ ├── ArchiveFormat.h
+│ │ ├── Stream.h # Generic streaming IO abstraction
+│ │ ├── Buffer.h
+│ │ ├── Error.h
+│ │ ├── Util.h
+│ │ │
+│ │ ├── zip/
+│ │ │ ├── ZipReader.h
+│ │ │ ├── ZipWriter.h
+│ │ │ ├── ZipStructs.h
+│ │ │
+│ │ ├── tar/
+│ │ │ ├── TarReader.h
+│ │ │ ├── TarWriter.h
+│ │ │ ├── TarStructs.h
+│ │ │
+│ │ ├── gzip/
+│ │ │ ├── GzipReader.h
+│ │ │ ├── GzipWriter.h
+│ │ │
+│ │ ├── lz4/
+│ │ │ ├── Lz4Reader.h
+│ │ │ ├── Lz4Writer.h
+│ │ │
+│ │ └── internal/
+│ │ ├── PathSanitizer.h
+│ │ ├── MemoryPool.h
+│ │ ├── SafeIO.h
+│ │ ├── DecompressionStream.h
+│ │ ├── CompressionStream.h
+│ │ └── FormatRegistry.h
+│
+├── src/
+│ ├── cpp/
+│ │ ├── ArchiveEngine.cpp
+│ │ ├── ArchiveReader.cpp
+│ │ ├── ArchiveWriter.cpp
+│ │ ├── Stream.cpp
+│ │ ├── Buffer.cpp
+│ │ ├── Error.cpp
+│ │ ├── Util.cpp
+│ │ │
+│ │ ├── zip/
+│ │ │ ├── ZipReader.cpp
+│ │ │ ├── ZipWriter.cpp
+│ │ │ ├── ZipStructs.cpp
+│ │ │
+│ │ ├── tar/
+│ │ │ ├── TarReader.cpp
+│ │ │ ├── TarWriter.cpp
+│ │ │ ├── TarStructs.cpp
+│ │ │
+│ │ ├── gzip/
+│ │ │ ├── GzipReader.cpp
+│ │ │ ├── GzipWriter.cpp
+│ │ │
+│ │ ├── lz4/
+│ │ │ ├── Lz4Reader.cpp
+│ │ │ ├── Lz4Writer.cpp
+│ │ │
+│ │ └── internal/
+│ │ ├── PathSanitizer.cpp
+│ │ ├── MemoryPool.cpp
+│ │ ├── SafeIO.cpp
+│ │ ├── DecompressionStream.cpp
+│ │ ├── CompressionStream.cpp
+│ │ └── FormatRegistry.cpp
+│ │
+│ ├── c/
+│ │ ├── zip/
+│ │ │ ├── zip_core.c # Core ZIP deflate/inflate structures
+│ │ │ ├── zip_core.h
+│ │ │
+│ │ ├── tar/
+│ │ │ ├── tar_core.c
+│ │ │ ├── tar_core.h
+│ │ │
+│ │ ├── gzip/
+│ │ │ ├── gzip_core.c
+│ │ │ ├── gzip_core.h
+│ │ │
+│ │ ├── lz4/
+│ │ │ ├── lz4_core.c
+│ │ │ ├── lz4_core.h
+│ │ │
+│ │ └── common/
+│ │ ├── bitstream.c
+│ │ ├── bitstream.h
+│ │ ├── crc32.c
+│ │ ├── crc32.h
+│ │ ├── endian.c
+│ │ ├── endian.h
+│ │ ├── memops.c
+│ │ ├── memops.h
+│ │ └── io_lowlevel.c
+│ └── io_lowlevel.h
+│
+├── tests/
+│ ├── CMakeLists.txt
+│ ├── test_zip.cpp
+│ ├── test_tar.cpp
+│ ├── test_gzip.cpp
+│ ├── test_lz4.cpp
+│ ├── test_streams.cpp
+│ └── test_security.cpp # Zip slip, zip bomb detection, invalid headers
+│
+├── android/
+│ ├── CMakeLists.txt
+│ ├── Application.mk
+│ ├── Android.mk
+│ └── jni/
+│ ├── ArchiveEngineJNI.cpp
+│ └── NativeBridge.h
+│
+└── third_party/
+├── zlib/ # Embedded or external link
+├── lz4/
+├── xxHash/
+└── libdeflate/
